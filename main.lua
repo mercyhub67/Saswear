@@ -19,23 +19,44 @@ local FOV = 100
 -- Item Aura
 local ItemAuraConnections = {}
 
+-- ===== Counter =====
+local Counter
+pcall(function()
+    for _, v in ipairs(getgc(true)) do
+        if typeof(v) == "table" and rawget(v, "event") and rawget(v, "func") then
+            Counter = v
+            break
+        end
+    end
+end)
+
+-- ===== netGet (แก้แค่ตรงนี้) =====
 local function netGet(...)
-    local Net = require(ReplicatedStorage.Modules.Core.Net)
-    return Net.get(...)
+    if not Counter then return end
+
+    Counter.func = (Counter.func or 0) + 1
+
+    local getRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
+
+    return getRemote:InvokeServer(Counter.func, ...)
 end
 
 task.spawn(function()
     while true do
         task.wait(0.1)
         if not ItemAuraEnabled then continue end
+
         local Character = LocalPlayer.Character
         if not Character then continue end
+
         local DroppedItems = workspace:FindFirstChild("DroppedItems")
         if not DroppedItems then continue end
+
         for _, Item in next, DroppedItems:GetChildren() do
             if Item:IsA("Model") then
                 local ItemPosition = Item:GetPivot().Position
                 local CharacterPosition = Character:GetPivot().Position
+
                 if (ItemPosition - CharacterPosition).Magnitude < 30 then
                     if Item.Name == "Money" then
                         task.spawn(function()
@@ -43,9 +64,11 @@ task.spawn(function()
                         end)
                         continue
                     end
+
                     task.spawn(function()
                         pcall(netGet, "pickup_dropped_item", Item)
                     end)
+
                     if not ItemAuraConnections[Item] then
                         local Connection
                         Connection = RunService.Heartbeat:Connect(function()
@@ -54,9 +77,11 @@ task.spawn(function()
                                 ItemAuraConnections[Item] = nil
                                 return
                             end
+
                             firetouchinterest(Item.PickUpZone, Character:FindFirstChild("HumanoidRootPart"), 1)
                             firetouchinterest(Item.PickUpZone, Character:FindFirstChild("HumanoidRootPart"), 0)
                         end)
+
                         ItemAuraConnections[Item] = Connection
                     end
                 end
